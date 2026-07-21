@@ -1,0 +1,206 @@
+# edit — a minimal text editor: a pure buffer core plus a gfx shell.
+#
+# The buffer core (new_doc, insert_str, newline, backspace, delete_fwd,
+# move, apply_key, replay, to_text) is pure EigenScript with no gfx
+# dependency, so it runs and tests in a plain build. The `run` function
+# is the gfx front-end; it is defined but never called at import time,
+# so `import edit` stays side-effect-free and headless-testable.
+#
+# Input model: gfx keydown events carry `key` (a scancode name like
+# "a"/"1"/"space"/"return") plus a `shift` flag — there is NO text
+# field, so the editor owns the key -> character mapping. That makes
+# input a deterministic replay tape: a list of [key, shift] events
+# reconstructs any buffer state byte-for-byte (see `replay`), which is
+# exactly what the smoke test byte-diffs against.
+
+VERSION is "0.1.0"
+
+# ---- key name (+ shift) -> printable string --------------------------
+
+_SHIFT_DIGIT is {"1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")"}
+_SHIFT_PUNCT is {"-": "_", "=": "+", "[": "{", "]": "}", "\\": "|", ";": ":", "'": "\"", ",": "<", ".": ">", "/": "?", "`": "~"}
+
+define _is_lower_letter(k) as:
+    if (len of k) != 1:
+        return 0
+    local c is ord of k
+    if c >= 97 and c <= 122:
+        return 1
+    return 0
+
+# The printable string a key produces, or "" when the key is not a
+# character-bearing key (arrows, function keys, unknown scancodes).
+define printable_for(key, shift) as:
+    if key == "space":
+        return " "
+    if key == "tab":
+        return "    "
+    if (_is_lower_letter of key) == 1:
+        if shift == 1:
+            return chr of ((ord of key) - 32)
+        return key
+    if (len of key) == 1:
+        if shift == 1:
+            if (has_key of [_SHIFT_DIGIT, key]) == 1:
+                return _SHIFT_DIGIT[key]
+            if (has_key of [_SHIFT_PUNCT, key]) == 1:
+                return _SHIFT_PUNCT[key]
+            return key
+        return key
+    return ""
+
+# ---- buffer model ----------------------------------------------------
+# A document is a dict {"lines": [str, ...], "cx": col, "cy": row}.
+# Dicts and lists are references, so the mutating ops below edit the
+# document the caller passed and also return it for chaining.
+
+define new_doc() as:
+    return {"lines": [""], "cx": 0, "cy": 0}
+
+define insert_str(doc, s) as:
+    local line is doc.lines[doc.cy]
+    local head is substr of [line, 0, doc.cx]
+    local tail is substr of [line, doc.cx, (len of line) - doc.cx]
+    set_at of [doc.lines, doc.cy, head + s + tail]
+    doc.cx is doc.cx + (len of s)
+    return doc
+
+define newline(doc) as:
+    local line is doc.lines[doc.cy]
+    local head is substr of [line, 0, doc.cx]
+    local tail is substr of [line, doc.cx, (len of line) - doc.cx]
+    set_at of [doc.lines, doc.cy, head]
+    list_insert_at of [doc.lines, doc.cy + 1, tail]
+    doc.cy is doc.cy + 1
+    doc.cx is 0
+    return doc
+
+define backspace(doc) as:
+    if doc.cx > 0:
+        local line is doc.lines[doc.cy]
+        local head is substr of [line, 0, doc.cx - 1]
+        local tail is substr of [line, doc.cx, (len of line) - doc.cx]
+        set_at of [doc.lines, doc.cy, head + tail]
+        doc.cx is doc.cx - 1
+    elif doc.cy > 0:
+        local prev is doc.lines[doc.cy - 1]
+        local line is doc.lines[doc.cy]
+        doc.cx is len of prev
+        set_at of [doc.lines, doc.cy - 1, prev + line]
+        list_remove_at of [doc.lines, doc.cy]
+        doc.cy is doc.cy - 1
+    return doc
+
+define delete_fwd(doc) as:
+    local line is doc.lines[doc.cy]
+    if doc.cx < (len of line):
+        local head is substr of [line, 0, doc.cx]
+        local tail is substr of [line, doc.cx + 1, (len of line) - doc.cx - 1]
+        set_at of [doc.lines, doc.cy, head + tail]
+    elif doc.cy < (len of doc.lines) - 1:
+        local nxt is doc.lines[doc.cy + 1]
+        set_at of [doc.lines, doc.cy, line + nxt]
+        list_remove_at of [doc.lines, doc.cy + 1]
+    return doc
+
+define _clamp_cx(doc) as:
+    local m is len of doc.lines[doc.cy]
+    if doc.cx > m:
+        doc.cx is m
+    if doc.cx < 0:
+        doc.cx is 0
+    return doc
+
+define move(doc, dir) as:
+    if dir == "left":
+        if doc.cx > 0:
+            doc.cx is doc.cx - 1
+        elif doc.cy > 0:
+            doc.cy is doc.cy - 1
+            doc.cx is len of doc.lines[doc.cy]
+    elif dir == "right":
+        if doc.cx < (len of doc.lines[doc.cy]):
+            doc.cx is doc.cx + 1
+        elif doc.cy < (len of doc.lines) - 1:
+            doc.cy is doc.cy + 1
+            doc.cx is 0
+    elif dir == "up":
+        if doc.cy > 0:
+            doc.cy is doc.cy - 1
+            _clamp_cx of doc
+    elif dir == "down":
+        if doc.cy < (len of doc.lines) - 1:
+            doc.cy is doc.cy + 1
+            _clamp_cx of doc
+    elif dir == "home":
+        doc.cx is 0
+    elif dir == "end":
+        doc.cx is len of doc.lines[doc.cy]
+    return doc
+
+# Dispatch a single key event onto the document.
+define apply_key(doc, key, shift) as:
+    if key == "return":
+        return newline of doc
+    if key == "backspace":
+        return backspace of doc
+    if key == "delete":
+        return delete_fwd of doc
+    if key == "left" or key == "right" or key == "up" or key == "down" or key == "home" or key == "end":
+        return move of [doc, key]
+    local ch is printable_for of [key, shift]
+    if (len of ch) > 0:
+        return insert_str of [doc, ch]
+    return doc
+
+# Replay a list of {"key": ..., "shift": 0/1} events onto a document.
+# This is the deterministic tape the smoke test drives.
+define replay(doc, events) as:
+    for i in range of (len of events):
+        local e is events[i]
+        local sh is 0
+        if (has_key of [e, "shift"]) == 1:
+            sh is e.shift
+        apply_key of [doc, e.key, sh]
+    return doc
+
+define to_text(doc) as:
+    return join of [doc.lines, "\n"]
+
+# ---- gfx front-end (only runs when explicitly called) ----------------
+
+define run() as:
+    local W is 720
+    local H is 480
+    local pad is 8
+    gfx_open of [W, H, "eigen-edit v" + VERSION]
+    local doc is new_doc of null
+    local lh is gfx_text_height of 2
+    local running is 1
+    loop while running == 1:
+        local ev is gfx_poll of null
+        loop while ev != null:
+            if ev.type == "quit":
+                running is 0
+            elif ev.type == "keydown":
+                if ev.key == "escape":
+                    running is 0
+                else:
+                    local sh is 0
+                    if ev.shift != null:
+                        sh is ev.shift
+                    apply_key of [doc, ev.key, sh]
+            ev is gfx_poll of null
+        gfx_clear of [24, 24, 30]
+        local y is pad
+        for i in range of (len of doc.lines):
+            gfx_text of [pad, y, doc.lines[i], 220, 220, 230, 2]
+            y is y + lh
+        local caret_prefix is substr of [doc.lines[doc.cy], 0, doc.cx]
+        local caret_x is pad + (gfx_text_width of [caret_prefix, 2])
+        local caret_y is pad + doc.cy * lh
+        gfx_rect of [caret_x, caret_y, 2, lh, 120, 200, 255]
+        gfx_present of null
+        gfx_delay of 16
+    gfx_close of null
+    return doc

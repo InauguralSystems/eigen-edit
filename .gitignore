@@ -1,0 +1,7 @@
+# Vendored dependencies belong to consumers, not packages.
+eigs_modules/
+eigs.lock.json
+
+# Editor + OS noise
+*.swp
+.DS_Store

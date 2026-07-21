@@ -1,0 +1,12 @@
+# Standalone launcher for eigen-edit.
+#
+#   make gfx -C <EigenScript>        # once, to get a gfx-capable build
+#   eigenscript main.eigs            # opens the editor window
+#
+# The editor logic lives in edit.eigs as a pure, importable buffer core;
+# this file is just the front-end that opens a window and hands control
+# to edit.run. Type to insert, arrows/home/end to move, backspace/delete
+# to erase, Enter for a new line, Escape (or the window close box) to quit.
+import edit
+
+edit.run of null
