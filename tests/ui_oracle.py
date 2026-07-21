@@ -100,26 +100,48 @@ def _capture(edit_path, render_body, title, w=720, h=480):
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         try:
             wid = None
-            for _ in range(50):
-                time.sleep(0.1)
+            for _ in range(150):   # up to ~30s: CI window mapping is high-variance
+                time.sleep(0.2)
                 r = subprocess.run(["xdotool", "search", "--name", title],
                                    env=ENV, capture_output=True, text=True)
                 if r.stdout.strip():
                     wid = r.stdout.strip().split("\n")[0]
                     break
+                if proc.poll() is not None:
+                    raise RuntimeError("renderer exited early: " + (proc.stdout.read() or ""))
             if not wid:
                 raise RuntimeError("window never appeared: " + (proc.stdout.read() or ""))
-            time.sleep(0.3)
+            # Poll until the window has painted — a fixed sleep races the first
+            # SDL present on a cold CI display (a blank grab -> empty atlas).
             xwd = os.path.join(tmp, "s.xwd")
-            subprocess.run(["xwd", "-id", wid, "-out", xwd], env=ENV, check=True,
-                           capture_output=True)
-            return _xwd_to_image(xwd)
+            img = None
+            for _ in range(30):
+                time.sleep(0.2)
+                subprocess.run(["xwd", "-id", wid, "-out", xwd], env=ENV, check=True,
+                               capture_output=True)
+                img = _xwd_to_image(xwd)
+                if _has_content(img):
+                    return img
+            return img
         finally:
             proc.terminate()
             try: proc.wait(timeout=5)
             except Exception: proc.kill()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _has_content(img):
+    """True once the frame has painted text ink (not a blank pre-render frame)."""
+    px = img.load(); W, H = img.size
+    lit = 0
+    for y in range(0, H, 3):
+        for x in range(0, W, 3):
+            if INK(*px[x, y]):
+                lit += 1
+                if lit > 40:
+                    return True
+    return False
 
 
 def _xwd_to_image(path):
