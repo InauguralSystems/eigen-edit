@@ -117,11 +117,15 @@ def _capture(edit_path, render_body, title, w=720, h=480):
             img = None
             for _ in range(30):
                 time.sleep(0.2)
-                subprocess.run(["xwd", "-id", wid, "-out", xwd], env=ENV, check=True,
-                               capture_output=True)
+                cap = subprocess.run(["xwd", "-id", wid, "-out", xwd], env=ENV,
+                                     capture_output=True)
+                if cap.returncode != 0:
+                    continue   # transient X error mid-map — retry
                 img = _xwd_to_image(xwd)
                 if _has_content(img):
                     return img
+            if img is None:
+                raise RuntimeError("could not capture the window")
             return img
         finally:
             proc.terminate()
