@@ -33,7 +33,7 @@ jobs:
       - name: Install display + capture tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb x11-utils xdotool python3-pil libsdl2-2.0-0 libsdl2-ttf-2.0-0
+          sudo apt-get install -y xvfb x11-apps xdotool python3-pil libsdl2-2.0-0 libsdl2-ttf-2.0-0
 
       - name: Build EigenScript (gfx) from source
         run: |
