@@ -20,3 +20,26 @@ jobs:
 
       - name: Run smoke tests
         run: bash tests/test_smoke.sh
+
+  ui-oracle:
+    # The render path is a UI, so a model byte-diff is not enough: this job
+    # renders through the real draw_frame in a window and decodes the pixels
+    # back to text, asserting they equal the headless model (and that a
+    # planted render bug is caught). Needs the gfx build + a virtual display.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install display + capture tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb x11-utils xdotool python3-pil libsdl2-2.0-0 libsdl2-ttf-2.0-0
+
+      - name: Build EigenScript (gfx) from source
+        run: |
+          git clone --depth 1 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
+          make -C "$RUNNER_TEMP/eigs" -s gfx
+          echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
+
+      - name: Render-vs-model UI oracle
+        run: xvfb-run -a -s "-screen 0 1400x768x24" python3 tests/ui_oracle.py

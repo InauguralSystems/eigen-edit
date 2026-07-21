@@ -169,13 +169,35 @@ define to_text(doc) as:
 
 # ---- gfx front-end (only runs when explicitly called) ----------------
 
+# Paint one frame of `doc` into the current window (local coords). Split
+# out of `run` so the UI oracle (tests/ui_oracle.py) drives the SAME draw
+# code the real app uses — the rendered pixels it decodes come from here,
+# not a reimplementation. Layout constants are the oracle's contract:
+# text scale 2 -> a 12px (6*2) x 14px (7*2) bitmap-font cell grid from
+# origin (8, 8); grey text vs the blue caret vs the dark background are
+# separable by brightness.
+define draw_frame(doc) as:
+    local pad is 8
+    local lh is gfx_text_height of 2
+    gfx_clear of [24, 24, 30]
+    local y is pad
+    for i in range of (len of doc.lines):
+        gfx_text of [pad, y, doc.lines[i], 220, 220, 230, 2]
+        y is y + lh
+    local caret_prefix is substr of [doc.lines[doc.cy], 0, doc.cx]
+    # Sit the caret in the blank gap just BEFORE the character at the
+    # cursor (glyphs are left-aligned in the cell, gap on the right), so
+    # it never paints over — and never nibbles — the glyph it marks.
+    local caret_x is (pad + (gfx_text_width of [caret_prefix, 2])) - 2
+    local caret_y is pad + doc.cy * lh
+    gfx_rect of [caret_x, caret_y, 2, lh, 120, 200, 255]
+    return 0
+
 define run() as:
     local W is 720
     local H is 480
-    local pad is 8
     gfx_open of [W, H, "eigen-edit v" + VERSION]
     local doc is new_doc of null
-    local lh is gfx_text_height of 2
     local running is 1
     loop while running == 1:
         local ev is gfx_poll of null
@@ -191,15 +213,7 @@ define run() as:
                         sh is ev.shift
                     apply_key of [doc, ev.key, sh]
             ev is gfx_poll of null
-        gfx_clear of [24, 24, 30]
-        local y is pad
-        for i in range of (len of doc.lines):
-            gfx_text of [pad, y, doc.lines[i], 220, 220, 230, 2]
-            y is y + lh
-        local caret_prefix is substr of [doc.lines[doc.cy], 0, doc.cx]
-        local caret_x is pad + (gfx_text_width of [caret_prefix, 2])
-        local caret_y is pad + doc.cy * lh
-        gfx_rect of [caret_x, caret_y, 2, lh, 120, 200, 255]
+        draw_frame of doc
         gfx_present of null
         gfx_delay of 16
     gfx_close of null

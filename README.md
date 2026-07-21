@@ -46,6 +46,32 @@ window, no xvfb, fully deterministic:
 EIGENSCRIPT=/path/to/eigenscript bash tests/test_smoke.sh
 ```
 
+## Two oracles, because it has a UI
+
+A byte-diff of the buffer model is necessary but not sufficient — it never
+looks at what a user sees. So correctness is checked on two **independent**
+paths that must agree:
+
+1. **Model** — `tests/test_smoke.sh` replays tapes and byte-diffs `to_text`
+   against expected output. Catches buffer-logic bugs. Headless, no display.
+2. **Render** — `tests/ui_oracle.py` renders through the real `draw_frame`
+   into a window, screenshots it, and **decodes the pixels back into text**,
+   asserting they equal the headless model. Catches rendering bugs: a dropped
+   line, a caret that paints over a glyph, a wrong character. The decode is
+   exact, not fuzzy OCR — the bitmap font (forced on via a nonexistent
+   `EIGS_GFX_FONT`) is a fixed atlas on a deterministic 12×14 px cell grid,
+   so the model *is* the reference; no self-authored golden image.
+
+The render oracle validates itself: a deliberately broken `draw_frame` (drops
+the first line) is run through the same pipeline and must be caught. It runs
+in CI under `xvfb` against a gfx build, and already paid for itself by finding
+a caret that nibbled the glyph under the cursor.
+
+```sh
+# needs the gfx build + xvfb + xdotool + PIL
+xvfb-run -a python3 tests/ui_oracle.py
+```
+
 ## Use it as a library
 
 The buffer core is a normal EigenScript package:
@@ -68,12 +94,15 @@ print of (edit.to_text of doc)      # -> Hi
 ├── eigs.json          # package manifest (name: edit)
 ├── edit.eigs          # importable buffer core + the gfx `run` front-end
 ├── main.eigs          # standalone launcher: import edit; edit.run of null
-├── tests/test_smoke.sh
-└── .github/workflows/test.yml   # builds EigenScript, runs the smoke test
+├── tests/
+│   ├── test_smoke.sh  # model oracle (headless buffer byte-diff)
+│   └── ui_oracle.py   # render oracle (pixels decoded back to model)
+└── .github/workflows/test.yml   # both oracles as CI jobs
 ```
 
-CI builds a plain (non-gfx) EigenScript from source and runs the smoke test
-on every push and PR — the buffer core needs no graphics to be verified.
+CI runs two jobs: `test` builds a plain (non-gfx) EigenScript and runs the
+model smoke test; `ui-oracle` builds the gfx EigenScript and runs the
+render-vs-model check under `xvfb`.
 
 ## License
 
