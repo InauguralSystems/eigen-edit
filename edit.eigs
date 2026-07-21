@@ -13,7 +13,7 @@
 # reconstructs any buffer state byte-for-byte (see `replay`), which is
 # exactly what the smoke test byte-diffs against.
 
-VERSION is "0.1.0"
+VERSION is "0.2.0"
 
 # ---- key name (+ shift) -> printable string --------------------------
 
