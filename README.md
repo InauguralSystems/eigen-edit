@@ -46,30 +46,34 @@ window, no xvfb, fully deterministic:
 EIGENSCRIPT=/path/to/eigenscript bash tests/test_smoke.sh
 ```
 
-## Two oracles, because it has a UI
+## Three oracles
 
-A byte-diff of the buffer model is necessary but not sufficient — it never
-looks at what a user sees. So correctness is checked on two **independent**
-paths that must agree:
+A byte-diff against my own expectations is a golden master — it pins
+regressions but can't tell you what *right* looks like. So correctness rests
+on three **independent** checks, each answering a different question:
 
-1. **Model** — `tests/test_smoke.sh` replays tapes and byte-diffs `to_text`
-   against expected output. Catches buffer-logic bugs. Headless, no display.
-2. **Render** — `tests/ui_oracle.py` renders through the real `draw_frame`
-   into a window, screenshots it, and **decodes the pixels back into text**,
-   asserting they equal the headless model. Catches rendering bugs: a dropped
-   line, a caret that paints over a glyph, a wrong character. The decode is
-   exact, not fuzzy OCR — the bitmap font (forced on via a nonexistent
-   `EIGS_GFX_FONT`) is a fixed atlas on a deterministic 12×14 px cell grid,
-   so the model *is* the reference; no self-authored golden image.
-
-The render oracle validates itself: a deliberately broken `draw_frame` (drops
-the first line) is run through the same pipeline and must be caught. It runs
-in CI under `xvfb` against a gfx build, and already paid for itself by finding
-a caret that nibbled the glyph under the cursor.
+1. **Model** (`tests/test_smoke.sh`) — replays tapes and byte-diffs `to_text`.
+   *Self-consistency:* did the buffer logic change? Headless, no display.
+2. **Differential vs a real editor** (`tests/diff_vs_editor.py`) — replays the
+   *same* keystrokes through headless **vim** and byte-diffs its saved buffer.
+   *External truth:* for the operations every real editor agrees on — typing,
+   Enter, Backspace (including line-join), Tab — "what right looks like" isn't
+   mine to invent; it's what a used editor actually does. vim's output is the
+   reference. (Cursor navigation and forward-delete diverge across editors, so
+   they're left to the other two oracles.)
+3. **Render** (`tests/ui_oracle.py`) — because it's a UI, renders through the
+   real `draw_frame`, screenshots the window, and **decodes the pixels back
+   into text**, asserting they equal the model. *Render fidelity:* a dropped
+   line, a caret painting over a glyph, a wrong character. Exact decode, not
+   fuzzy OCR — the bitmap font (forced via a nonexistent `EIGS_GFX_FONT`) is a
+   fixed atlas on a deterministic 12×14 px cell grid, and the render oracle
+   validates itself: a deliberately broken `draw_frame` (drops line 0) must be
+   caught. It already paid for itself by finding a caret that nibbled the
+   glyph under the cursor.
 
 ```sh
-# needs the gfx build + xvfb + xdotool + PIL
-xvfb-run -a python3 tests/ui_oracle.py
+EIGENSCRIPT=/path/to/eigenscript python3 tests/diff_vs_editor.py   # needs vim
+xvfb-run -a python3 tests/ui_oracle.py                             # needs gfx build + xvfb + xdotool + PIL
 ```
 
 ## Use it as a library
@@ -95,14 +99,15 @@ print of (edit.to_text of doc)      # -> Hi
 ├── edit.eigs          # importable buffer core + the gfx `run` front-end
 ├── main.eigs          # standalone launcher: import edit; edit.run of null
 ├── tests/
-│   ├── test_smoke.sh  # model oracle (headless buffer byte-diff)
-│   └── ui_oracle.py   # render oracle (pixels decoded back to model)
-└── .github/workflows/test.yml   # both oracles as CI jobs
+│   ├── test_smoke.sh      # model oracle (headless buffer byte-diff)
+│   ├── diff_vs_editor.py  # differential oracle vs headless vim
+│   └── ui_oracle.py       # render oracle (pixels decoded back to model)
+└── .github/workflows/test.yml   # all three oracles as CI steps/jobs
 ```
 
 CI runs two jobs: `test` builds a plain (non-gfx) EigenScript and runs the
-model smoke test; `ui-oracle` builds the gfx EigenScript and runs the
-render-vs-model check under `xvfb`.
+model smoke test **and** the vim differential oracle; `ui-oracle` builds the
+gfx EigenScript and runs the render-vs-model check under `xvfb`.
 
 ## License
 

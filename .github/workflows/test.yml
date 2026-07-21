@@ -21,6 +21,12 @@ jobs:
       - name: Run smoke tests
         run: bash tests/test_smoke.sh
 
+      - name: Install reference editor
+        run: sudo apt-get update && sudo apt-get install -y vim
+
+      - name: Differential oracle vs vim
+        run: python3 tests/diff_vs_editor.py
+
   ui-oracle:
     # The render path is a UI, so a model byte-diff is not enough: this job
     # renders through the real draw_frame in a window and decodes the pixels
