@@ -14,7 +14,7 @@ jobs:
 
       - name: Build EigenScript from source
         run: |
-          git clone --depth 1 --branch v0.37.0 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
+          git clone --depth 1 --branch v0.38.0 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
           make -C "$RUNNER_TEMP/eigs" -s
           echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
 
@@ -43,7 +43,7 @@ jobs:
 
       - name: Build EigenScript (gfx) from source
         run: |
-          git clone --depth 1 --branch v0.37.0 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
+          git clone --depth 1 --branch v0.38.0 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
           make -C "$RUNNER_TEMP/eigs" -s gfx
           echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
 
