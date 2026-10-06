@@ -86,7 +86,7 @@ cat > "$TMP/keys.eigs" <<EOF
 import $PKG_NAME
 ks is keys of $PKG_NAME
 for i in range of (len of ks):
-    if (starts_with of [ks[i], "_"]) == 1:
+    if (starts_with of [ks[i], "_"]):
         print of ("LEAKED " + ks[i])
 print of "keys-checked"
 EOF
