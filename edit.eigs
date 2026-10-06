@@ -36,14 +36,14 @@ define printable_for(key, shift) as:
     if key == "tab":
         return "    "
     if (_is_lower_letter of key) == 1:
-        if shift == 1:
+        if shift:
             return chr of ((ord of key) - 32)
         return key
     if (len of key) == 1:
-        if shift == 1:
-            if (has_key of [_SHIFT_DIGIT, key]) == 1:
+        if shift:
+            if (has_key of [_SHIFT_DIGIT, key]):
                 return _SHIFT_DIGIT[key]
-            if (has_key of [_SHIFT_PUNCT, key]) == 1:
+            if (has_key of [_SHIFT_PUNCT, key]):
                 return _SHIFT_PUNCT[key]
             return key
         return key
@@ -159,7 +159,7 @@ define replay(doc, events) as:
     for i in range of (len of events):
         local e is events[i]
         local sh is 0
-        if (has_key of [e, "shift"]) == 1:
+        if (has_key of [e, "shift"]):
             sh is e.shift
         apply_key of [doc, e.key, sh]
     return doc
