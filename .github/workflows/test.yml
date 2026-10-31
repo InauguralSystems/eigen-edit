@@ -19,7 +19,9 @@ jobs:
           echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
 
       - name: Run smoke tests
-        run: bash tests/test_smoke.sh
+        run: |
+          bash tests/test_smoke.sh
+          bash tests/test_issue_21.sh
 
       - name: Install reference editor
         run: sudo apt-get update && sudo apt-get install -y vim

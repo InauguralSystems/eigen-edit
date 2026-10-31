@@ -1,0 +1,1 @@
+- Boolean-returning builtins are consumed as booleans throughout the editor and its release example works with the pinned runtime (#21).

@@ -13,7 +13,7 @@
 # reconstructs any buffer state byte-for-byte (see `replay`), which is
 # exactly what the smoke test byte-diffs against.
 
-VERSION is "0.2.0"
+VERSION is "0.2.1"
 
 # ---- key name (+ shift) -> printable string --------------------------
 
@@ -22,11 +22,11 @@ _SHIFT_PUNCT is {"-": "_", "=": "+", "[": "{", "]": "}", "\\": "|", ";": ":", "'
 
 define _is_lower_letter(k) as:
     if (len of k) != 1:
-        return 0
+        return false
     local c is ord of k
     if c >= 97 and c <= 122:
-        return 1
-    return 0
+        return true
+    return false
 
 # The printable string a key produces, or "" when the key is not a
 # character-bearing key (arrows, function keys, unknown scancodes).
@@ -35,7 +35,7 @@ define printable_for(key, shift) as:
         return " "
     if key == "tab":
         return "    "
-    if (_is_lower_letter of key) == 1:
+    if (_is_lower_letter of key):
         if shift:
             return chr of ((ord of key) - 32)
         return key
@@ -153,7 +153,7 @@ define apply_key(doc, key, shift) as:
         return insert_str of [doc, ch]
     return doc
 
-# Replay a list of {"key": ..., "shift": 0/1} events onto a document.
+# Replay a list of {"key": ..., "shift": true/false} events onto a document.
 # This is the deterministic tape the smoke test drives.
 define replay(doc, events) as:
     for i in range of (len of events):

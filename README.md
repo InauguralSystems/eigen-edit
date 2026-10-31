@@ -81,7 +81,7 @@ xvfb-run -a python3 tests/ui_oracle.py                             # needs gfx b
 The buffer core is a normal EigenScript package:
 
 ```sh
-eigenscript --pkg add InauguralSystems/edit https://github.com/InauguralSystems/eigen-edit v0.1.0
+eigenscript --pkg add InauguralSystems/edit https://github.com/InauguralSystems/eigen-edit v0.2.1
 ```
 
 ```eigenscript
@@ -89,6 +89,14 @@ import edit
 doc is edit.new_doc of null
 edit.replay of [doc, [{"key":"h","shift":1},{"key":"i"}]]
 print of (edit.to_text of doc)      # -> Hi
+```
+
+With the pinned EigenScript `v0.48.0`, a value's first observer report is
+`equilibrium` (not `improving`):
+
+```eigenscript
+value is 1
+print of (report of value) # -> equilibrium
 ```
 
 ## Layout
